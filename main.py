@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
-from crawl import Crawler
-from index import Indexer
-from resolve import URLResolver
+from crawl import *
+from index import *
 
 
 def load_url_frontier():

@@ -2,10 +2,10 @@
 
 import db
 import Queue
-import socket
 import threading
 import time
-import urllib2
+import timed_set as ts
+from urlparse import urlparse
 from url_resolver import URLResolver
 from pymongo import MongoClient
 
@@ -39,20 +39,24 @@ class Crawler:
             self.url_queue = url_queue
         self.threadpool = self.create_threadpool(self.url_queue)
         self.resolver = URLResolver()
+        self.recently_crawled_domains = ts.TimedSet()
 
     def crawl(self, thread_id, url_queue):
         while not exiting:
-            queue_lock.acquire()
             if not url_queue.empty():
+                queue_lock.acquire()
                 url_str = url_queue.get()
                 queue_lock.release()
+                parsed_uri = urlparse(url_str)
+                domain = "{uri.scheme}://{uri.netloc}/".format(uri=parsed_uri)
+                if domain in self.recently_crawled_domains:
+                    url_queue.put(url_str)  # If recently crawled, skip for now
+                    continue
                 content, content_type = self.resolver.resolve_url(url_str)
                 page = db.get_page(url_str, pages)
                 page.mark_crawled(content, content_type)
                 db.update_database(page, pages)
-            else:
-                queue_lock.release()
-            time.sleep(1)
+                self.recently_crawled_domains.add(domain)  # Recently crawled
 
     def create_queue(self, n=100):
         url_queue = Queue.Queue(n)
